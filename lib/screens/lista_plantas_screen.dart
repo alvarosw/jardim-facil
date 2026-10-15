@@ -39,20 +39,43 @@ class _ListaPlantasScreenState extends State<ListaPlantasScreen> {
       _carregando = true;
       _erro = false;
     });
-    repository.carregarPlantas().then((plantas) async {
-      await favoritos.carregar();
+    repository
+        .carregarPlantas()
+        .then((plantas) async {
+          await favoritos.carregar();
+          if (!mounted) return;
+          setState(() {
+            _plantas = plantas;
+            _carregando = false;
+          });
+        })
+        .catchError((_) {
+          if (!mounted) return;
+          setState(() {
+            _carregando = false;
+            _erro = true;
+          });
+        });
+  }
+
+  Future<void> _atualizar() async {
+    try {
+      final plantas = await context
+          .read<PlantaRepository>()
+          .recarregarPlantas();
       if (!mounted) return;
       setState(() {
         _plantas = plantas;
-        _carregando = false;
+        _erro = false;
       });
-    }).catchError((_) {
+    } catch (_) {
       if (!mounted) return;
-      setState(() {
-        _carregando = false;
-        _erro = true;
-      });
-    });
+      Toast.show(
+        'Não foi possível atualizar a lista',
+        duration: Toast.lengthLong,
+        gravity: Toast.bottom,
+      );
+    }
   }
 
   Future<void> _confirmarSaida() async {
@@ -184,25 +207,35 @@ class _ListaPlantasScreenState extends State<ListaPlantasScreen> {
           ),
         ),
         Expanded(
-          child: filtradas.isEmpty
-              ? const Center(child: Text('Nenhuma planta encontrada'))
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: filtradas.length,
-                  itemBuilder: (context, i) {
-                    final planta = filtradas[i];
-                    return PlantaCard(
-                      planta: planta,
-                      onTap: () => context
-                          .read<GerenciadorEstado>()
-                          .exibirDetalhes(planta.id),
-                      favorita: favoritos.isFavorita(planta.id),
-                      onFavoritar: auth.estaLogado
-                          ? () => favoritos.alternar(planta.id)
-                          : null,
-                    );
-                  },
-                ),
+          child: RefreshIndicator(
+            onRefresh: _atualizar,
+            child: filtradas.isEmpty
+                ? ListView(
+                    children: const [
+                      Padding(
+                        padding: EdgeInsets.only(top: 48),
+                        child: Center(child: Text('Nenhuma planta encontrada')),
+                      ),
+                    ],
+                  )
+                : ListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: filtradas.length,
+                    itemBuilder: (context, i) {
+                      final planta = filtradas[i];
+                      return PlantaCard(
+                        planta: planta,
+                        onTap: () => context
+                            .read<GerenciadorEstado>()
+                            .exibirDetalhes(planta.id),
+                        favorita: favoritos.isFavorita(planta.id),
+                        onFavoritar: auth.estaLogado
+                            ? () => favoritos.alternar(planta.id)
+                            : null,
+                      );
+                    },
+                  ),
+          ),
         ),
       ],
     );
@@ -213,10 +246,7 @@ class _ListaPlantasScreenState extends State<ListaPlantasScreen> {
     final auth = context.watch<AuthService>();
     final favoritos = context.watch<FavoritosService>();
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Jardim Fácil'),
-        actions: _acoes(auth),
-      ),
+      appBar: AppBar(title: const Text('Jardim Fácil'), actions: _acoes(auth)),
       body: Column(
         children: [
           _banner(auth),

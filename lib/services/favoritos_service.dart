@@ -13,7 +13,7 @@ class FavoritosService extends ChangeNotifier {
   bool _carregado = false;
 
   FavoritosService(this.auth, {AssetBundle? bundle})
-      : _bundle = bundle ?? rootBundle {
+    : _bundle = bundle ?? rootBundle {
     // Atualiza a interface quando o usuário entra ou sai
     auth.addListener(notifyListeners);
   }
@@ -29,9 +29,9 @@ class FavoritosService extends ChangeNotifier {
     final texto = await _bundle.loadString('assets/data/favoritos.json');
     final mapa = jsonDecode(texto) as Map<String, dynamic>;
     mapa.forEach((userId, ids) {
-      _favoritos.putIfAbsent(userId, () => <String>{}).addAll(
-            (ids as List<dynamic>).cast<String>(),
-          );
+      _favoritos
+          .putIfAbsent(userId, () => <String>{})
+          .addAll((ids as List<dynamic>).cast<String>());
     });
     _carregado = true;
     notifyListeners();

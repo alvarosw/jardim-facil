@@ -20,6 +20,12 @@ class PlantaRepository {
     return _cache!;
   }
 
+  // Descarta o cache e lê o JSON de novo (usado ao puxar a lista para atualizar).
+  Future<List<Planta>> recarregarPlantas() {
+    _cache = null;
+    return carregarPlantas();
+  }
+
   Future<Planta?> buscarPorId(String id) async {
     final plantas = await carregarPlantas();
     for (final p in plantas) {

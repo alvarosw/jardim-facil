@@ -14,9 +14,14 @@ void main() {
       final ids = plantas.map((p) => p.id).toSet();
       expect(ids.length, 12);
       expect(
-          ids,
-          containsAll(
-              ['suculenta', 'samambaia', 'espada-de-sao-jorge', 'manjericao']));
+        ids,
+        containsAll([
+          'suculenta',
+          'samambaia',
+          'espada-de-sao-jorge',
+          'manjericao',
+        ]),
+      );
       for (final p in plantas) {
         expect(p.nome, isNotEmpty);
         expect(p.nomeCientifico, isNotEmpty);

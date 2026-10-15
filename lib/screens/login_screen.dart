@@ -30,10 +30,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _entrar() {
     if (!_formKey.currentState!.validate()) return;
     final auth = context.read<AuthService>();
-    final ok = auth.login(
-      _emailController.text.trim(),
-      _senhaController.text,
-    );
+    final ok = auth.login(_emailController.text.trim(), _senhaController.text);
     if (ok) {
       Toast.show(
         'Bem-vindo(a), ${auth.usuarioLogado?.nome}!',

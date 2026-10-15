@@ -5,9 +5,17 @@ import '../models/usuario.dart';
 class AuthService extends ChangeNotifier {
   static const List<Usuario> usuariosMock = [
     Usuario(
-        id: '1', nome: 'Maria Silva', email: 'maria@jardim.com', senha: '123456'),
+      id: '1',
+      nome: 'Maria Silva',
+      email: 'maria@jardim.com',
+      senha: '123456',
+    ),
     Usuario(
-        id: '2', nome: 'João Souza', email: 'joao@jardim.com', senha: '123456'),
+      id: '2',
+      nome: 'João Souza',
+      email: 'joao@jardim.com',
+      senha: '123456',
+    ),
   ];
 
   Usuario? _usuarioLogado;

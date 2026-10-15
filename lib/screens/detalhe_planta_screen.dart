@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:toast/toast.dart';
 
 import '../models/planta.dart';
@@ -50,6 +51,17 @@ class _DetalhePlantaScreenState extends State<DetalhePlantaScreen> {
     );
   }
 
+  void _compartilhar(Planta planta) {
+    final texto =
+        '${planta.nome} (${planta.nomeCientifico})\n\n'
+        'Luminosidade: ${planta.luminosidade}\n'
+        'Rega: ${planta.rega}\n'
+        'Dificuldade: ${planta.dificuldade}\n'
+        'Dica de cuidado: ${planta.dica}\n\n'
+        'Enviado pelo Jardim Fácil';
+    SharePlus.instance.share(ShareParams(title: 'Jardim Fácil', text: texto));
+  }
+
   @override
   Widget build(BuildContext context) {
     final planta = _planta;
@@ -73,13 +85,20 @@ class _DetalhePlantaScreenState extends State<DetalhePlantaScreen> {
       appBar: AppBar(
         leading: voltar,
         title: Text(planta.nome),
+        actions: [
+          IconButton(
+            tooltip: 'Compartilhar cuidados',
+            icon: const Icon(Icons.share),
+            onPressed: () => _compartilhar(planta),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _alternar(planta),
         icon: Icon(favorita ? Icons.favorite : Icons.favorite_border),
-        label: Text(favorita
-            ? 'Remover do meu jardim'
-            : 'Adicionar ao meu jardim'),
+        label: Text(
+          favorita ? 'Remover do meu jardim' : 'Adicionar ao meu jardim',
+        ),
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 96),
@@ -94,15 +113,10 @@ class _DetalhePlantaScreenState extends State<DetalhePlantaScreen> {
             child: Text(planta.emoji, style: const TextStyle(fontSize: 88)),
           ),
           const SizedBox(height: 16),
-          Text(
-            planta.nome,
-            style: Theme.of(context).textTheme.headlineMedium,
-          ),
+          Text(planta.nome, style: Theme.of(context).textTheme.headlineMedium),
           Text(
             planta.nomeCientifico,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
+            style: Theme.of(context).textTheme.titleMedium
                 ?.copyWith(fontStyle: FontStyle.italic),
           ),
           const SizedBox(height: 12),
@@ -113,11 +127,7 @@ class _DetalhePlantaScreenState extends State<DetalhePlantaScreen> {
             titulo: 'Luminosidade',
             valor: planta.luminosidade,
           ),
-          InfoCard(
-            icone: Icons.water_drop,
-            titulo: 'Rega',
-            valor: planta.rega,
-          ),
+          InfoCard(icone: Icons.water_drop, titulo: 'Rega', valor: planta.rega),
           InfoCard(
             icone: Icons.signal_cellular_alt,
             titulo: 'Dificuldade',

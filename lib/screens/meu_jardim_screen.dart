@@ -38,11 +38,16 @@ class _MeuJardimScreenState extends State<MeuJardimScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.yard,
-                size: 72, color: Theme.of(context).colorScheme.outline),
+            Icon(
+              Icons.yard,
+              size: 72,
+              color: Theme.of(context).colorScheme.outline,
+            ),
             const SizedBox(height: 16),
-            Text('Seu jardim está vazio',
-                style: Theme.of(context).textTheme.titleLarge),
+            Text(
+              'Seu jardim está vazio',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 8),
             const Text(
               'Toque no coração de uma planta para adicioná-la aqui',
@@ -70,22 +75,22 @@ class _MeuJardimScreenState extends State<MeuJardimScreen> {
       body: _carregando
           ? const Center(child: CircularProgressIndicator())
           : minhas.isEmpty
-              ? _vazio(context)
-              : ListView.builder(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: minhas.length,
-                  itemBuilder: (context, i) {
-                    final planta = minhas[i];
-                    return PlantaCard(
-                      planta: planta,
-                      favorita: true,
-                      onFavoritar: () => favoritos.alternar(planta.id),
-                      onTap: () => context
-                          .read<GerenciadorEstado>()
-                          .exibirDetalhes(planta.id),
-                    );
-                  },
-                ),
+          ? _vazio(context)
+          : ListView.builder(
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              itemCount: minhas.length,
+              itemBuilder: (context, i) {
+                final planta = minhas[i];
+                return PlantaCard(
+                  planta: planta,
+                  favorita: true,
+                  onFavoritar: () => favoritos.alternar(planta.id),
+                  onTap: () => context.read<GerenciadorEstado>().exibirDetalhes(
+                    planta.id,
+                  ),
+                );
+              },
+            ),
     );
   }
 }

@@ -25,7 +25,10 @@ class InfoCard extends StatelessWidget {
       margin: const EdgeInsets.symmetric(vertical: 6),
       child: ListTile(
         leading: Icon(icone, color: destaque ? cores.tertiary : cores.primary),
-        title: Text(titulo, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          titulo,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         subtitle: conteudo ?? Text(valor),
       ),
     );

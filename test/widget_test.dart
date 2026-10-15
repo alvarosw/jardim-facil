@@ -15,11 +15,9 @@ Future<void> abrirApp(WidgetTester tester) async {
     await repository.carregarPlantas();
     await favoritos.carregar();
   });
-  await tester.pumpWidget(JardimFacil(
-    repository: repository,
-    auth: auth,
-    favoritos: favoritos,
-  ));
+  await tester.pumpWidget(
+    JardimFacil(repository: repository, auth: auth, favoritos: favoritos),
+  );
   await tester.pumpAndSettle();
 }
 
@@ -31,7 +29,10 @@ Future<void> aguardarToast(WidgetTester tester) async {
 Future<void> fazerLogin(WidgetTester tester, String senha) async {
   await tester.tap(find.text('Entrar'));
   await tester.pumpAndSettle();
-  await tester.enterText(find.byKey(const Key('campoEmail')), 'maria@jardim.com');
+  await tester.enterText(
+    find.byKey(const Key('campoEmail')),
+    'maria@jardim.com',
+  );
   await tester.enterText(find.byKey(const Key('campoSenha')), senha);
   await tester.tap(find.byKey(const Key('botaoEntrar')));
   await tester.pumpAndSettle();
@@ -73,7 +74,10 @@ void main() {
     await abrirApp(tester);
     expect(find.byIcon(Icons.favorite_border), findsNothing);
     expect(find.byTooltip('Meu jardim'), findsNothing);
-    expect(find.text('Entre para salvar suas plantas favoritas'), findsOneWidget);
+    expect(
+      find.text('Entre para salvar suas plantas favoritas'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('login com sucesso mostra Meu jardim', (tester) async {
