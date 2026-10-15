@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:toast/toast.dart';
 
 import '../services/auth_service.dart';
+import '../services/gerenciador_estado.dart';
 
-/// Tela de login (mock). Retorna true via Navigator.pop se o login der certo.
+/// Tela de login (mock). Ao dar certo, volta para a lista de plantas.
 class LoginScreen extends StatefulWidget {
-  final AuthService auth;
-
-  const LoginScreen({super.key, required this.auth});
+  const LoginScreen({super.key});
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -28,12 +29,18 @@ class _LoginScreenState extends State<LoginScreen> {
 
   void _entrar() {
     if (!_formKey.currentState!.validate()) return;
-    final ok = widget.auth.login(
+    final auth = context.read<AuthService>();
+    final ok = auth.login(
       _emailController.text.trim(),
       _senhaController.text,
     );
     if (ok) {
-      Navigator.pop(context, true);
+      Toast.show(
+        'Bem-vindo(a), ${auth.usuarioLogado?.nome}!',
+        duration: Toast.lengthLong,
+        gravity: Toast.bottom,
+      );
+      context.read<GerenciadorEstado>().exibirPlantas();
     } else {
       setState(() => _erro = 'E-mail ou senha inválidos');
     }
@@ -43,7 +50,14 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget build(BuildContext context) {
     final cores = Theme.of(context).colorScheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Entrar')),
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Voltar',
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.read<GerenciadorEstado>().exibirPlantas(),
+        ),
+        title: const Text('Entrar'),
+      ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Form(

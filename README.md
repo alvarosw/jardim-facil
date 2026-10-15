@@ -30,9 +30,9 @@ O login é apenas simulado (mock), não há servidor.
 
 ```
 lib/
-  main.dart                 # ponto de entrada e tema
+  main.dart                 # ponto de entrada, providers, tema e troca de telas
   models/                   # Planta e Usuario
-  services/                 # repositório de plantas, autenticação e favoritos
+  services/                 # repositório de plantas, autenticação, favoritos e estado da tela
   screens/                  # lista, detalhes, login e Meu jardim
   widgets/                  # PlantaCard, DificuldadeChip, InfoCard
 assets/data/

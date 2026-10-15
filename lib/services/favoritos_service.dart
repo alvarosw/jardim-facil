@@ -7,9 +7,6 @@ import '../models/planta.dart';
 import 'auth_service.dart';
 
 class FavoritosService extends ChangeNotifier {
-  static final FavoritosService instance =
-      FavoritosService(AuthService.instance);
-
   final AuthService auth;
   final AssetBundle _bundle;
   final Map<String, Set<String>> _favoritos = {};

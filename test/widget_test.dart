@@ -15,7 +15,7 @@ Future<void> abrirApp(WidgetTester tester) async {
     await repository.carregarPlantas();
     await favoritos.carregar();
   });
-  await tester.pumpWidget(JardimFacilApp(
+  await tester.pumpWidget(JardimFacil(
     repository: repository,
     auth: auth,
     favoritos: favoritos,
@@ -93,7 +93,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Remover do meu jardim'), findsOneWidget);
 
-    await tester.pageBack();
+    await tester.tap(find.byTooltip('Voltar'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Meu jardim'));
     await tester.pumpAndSettle();

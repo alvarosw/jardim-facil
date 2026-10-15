@@ -3,8 +3,6 @@ import 'package:flutter/foundation.dart';
 import '../models/usuario.dart';
 
 class AuthService extends ChangeNotifier {
-  static final AuthService instance = AuthService();
-
   static const List<Usuario> usuariosMock = [
     Usuario(
         id: '1', nome: 'Maria Silva', email: 'maria@jardim.com', senha: '123456'),

@@ -1,26 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:toast/toast.dart';
 
 import '../models/planta.dart';
 import '../services/auth_service.dart';
 import '../services/favoritos_service.dart';
+import '../services/gerenciador_estado.dart';
 import '../services/planta_repository.dart';
 import '../widgets/planta_card.dart';
-import 'detalhe_planta_screen.dart';
-import 'login_screen.dart';
-import 'meu_jardim_screen.dart';
 
 /// Tela inicial: lista de plantas com busca e filtro por dificuldade.
 class ListaPlantasScreen extends StatefulWidget {
-  final PlantaRepository repository;
-  final AuthService auth;
-  final FavoritosService favoritos;
-
-  const ListaPlantasScreen({
-    super.key,
-    required this.repository,
-    required this.auth,
-    required this.favoritos,
-  });
+  const ListaPlantasScreen({super.key});
 
   @override
   State<ListaPlantasScreen> createState() => _ListaPlantasScreenState();
@@ -29,34 +20,39 @@ class ListaPlantasScreen extends StatefulWidget {
 class _ListaPlantasScreenState extends State<ListaPlantasScreen> {
   static const _filtros = ['Todas', 'Fácil', 'Média', 'Difícil'];
 
-  late Future<List<Planta>> _futuro;
+  List<Planta> _plantas = [];
+  bool _carregando = true;
+  bool _erro = false;
   String _busca = '';
   String _filtro = 'Todas';
 
   @override
   void initState() {
     super.initState();
-    _futuro = _carregar();
+    _carregar();
   }
 
-  Future<List<Planta>> _carregar() async {
-    final plantas = await widget.repository.carregarPlantas();
-    await widget.favoritos.carregar();
-    return plantas;
-  }
-
-  void _recarregar() => setState(() => _futuro = _carregar());
-
-  Future<void> _abrirLogin() async {
-    final ok = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(builder: (_) => LoginScreen(auth: widget.auth)),
-    );
-    if (ok == true && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('Bem-vindo(a), ${widget.auth.usuarioLogado?.nome}!'),
-      ));
-    }
+  void _carregar() {
+    final repository = context.read<PlantaRepository>();
+    final favoritos = context.read<FavoritosService>();
+    setState(() {
+      _carregando = true;
+      _erro = false;
+    });
+    repository.carregarPlantas().then((plantas) async {
+      await favoritos.carregar();
+      if (!mounted) return;
+      setState(() {
+        _plantas = plantas;
+        _carregando = false;
+      });
+    }).catchError((_) {
+      if (!mounted) return;
+      setState(() {
+        _carregando = false;
+        _erro = true;
+      });
+    });
   }
 
   Future<void> _confirmarSaida() async {
@@ -77,69 +73,23 @@ class _ListaPlantasScreenState extends State<ListaPlantasScreen> {
         ],
       ),
     );
-    if (sair == true) widget.auth.logout();
+    if (sair == true && mounted) {
+      context.read<AuthService>().logout();
+      Toast.show(
+        'Você foi desconectado com sucesso',
+        duration: Toast.lengthLong,
+        gravity: Toast.bottom,
+      );
+    }
   }
 
-  void _abrirDetalhe(Planta planta) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => DetalhePlantaScreen(
-          planta: planta,
-          auth: widget.auth,
-          favoritos: widget.favoritos,
-        ),
-      ),
-    );
-  }
-
-  void _abrirMeuJardim(List<Planta> plantas) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => MeuJardimScreen(
-          plantas: plantas,
-          auth: widget.auth,
-          favoritos: widget.favoritos,
-        ),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: Listenable.merge([widget.auth, widget.favoritos]),
-      builder: (context, _) {
-        return FutureBuilder<List<Planta>>(
-          future: _futuro,
-          builder: (context, snapshot) {
-            final plantas = snapshot.data;
-            return Scaffold(
-              appBar: AppBar(
-                title: const Text('Jardim Fácil'),
-                actions: _acoes(plantas),
-              ),
-              body: Column(
-                children: [
-                  _banner(),
-                  Expanded(child: _corpo(snapshot)),
-                ],
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-
-  List<Widget> _acoes(List<Planta>? plantas) {
-    if (widget.auth.estaLogado) {
+  List<Widget> _acoes(AuthService auth) {
+    if (auth.estaLogado) {
       return [
         IconButton(
           tooltip: 'Meu jardim',
           icon: const Icon(Icons.yard),
-          onPressed: plantas == null ? null : () => _abrirMeuJardim(plantas),
+          onPressed: () => context.read<GerenciadorEstado>().exibirMeuJardim(),
         ),
         IconButton(
           tooltip: 'Sair',
@@ -150,17 +100,17 @@ class _ListaPlantasScreenState extends State<ListaPlantasScreen> {
     }
     return [
       TextButton.icon(
-        onPressed: _abrirLogin,
+        onPressed: () => context.read<GerenciadorEstado>().exibirLogin(),
         icon: const Icon(Icons.login),
         label: const Text('Entrar'),
       ),
     ];
   }
 
-  Widget _banner() {
+  Widget _banner(AuthService auth) {
     final cores = Theme.of(context).colorScheme;
-    final logado = widget.auth.estaLogado;
-    final nome = widget.auth.usuarioLogado?.nome.split(' ').first ?? '';
+    final logado = auth.estaLogado;
+    final nome = auth.usuarioLogado?.nome.split(' ').first ?? '';
     return Container(
       width: double.infinity,
       color: logado ? cores.primaryContainer : cores.surfaceContainerHighest,
@@ -174,11 +124,11 @@ class _ListaPlantasScreenState extends State<ListaPlantasScreen> {
     );
   }
 
-  Widget _corpo(AsyncSnapshot<List<Planta>> snapshot) {
-    if (snapshot.connectionState != ConnectionState.done) {
+  Widget _corpo(AuthService auth, FavoritosService favoritos) {
+    if (_carregando) {
       return const Center(child: CircularProgressIndicator());
     }
-    if (snapshot.hasError) {
+    if (_erro) {
       return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -188,16 +138,15 @@ class _ListaPlantasScreenState extends State<ListaPlantasScreen> {
             const Text('Não foi possível carregar as plantas'),
             const SizedBox(height: 8),
             FilledButton(
-              onPressed: _recarregar,
+              onPressed: _carregar,
               child: const Text('Tentar novamente'),
             ),
           ],
         ),
       );
     }
-    final todas = snapshot.data ?? [];
     final busca = _busca.trim().toLowerCase();
-    final filtradas = todas.where((p) {
+    final filtradas = _plantas.where((p) {
       final nomeOk = p.nome.toLowerCase().contains(busca);
       final nivelOk = _filtro == 'Todas' || p.dificuldade == _filtro;
       return nomeOk && nivelOk;
@@ -244,16 +193,36 @@ class _ListaPlantasScreenState extends State<ListaPlantasScreen> {
                     final planta = filtradas[i];
                     return PlantaCard(
                       planta: planta,
-                      onTap: () => _abrirDetalhe(planta),
-                      favorita: widget.favoritos.isFavorita(planta.id),
-                      onFavoritar: widget.auth.estaLogado
-                          ? () => widget.favoritos.alternar(planta.id)
+                      onTap: () => context
+                          .read<GerenciadorEstado>()
+                          .exibirDetalhes(planta.id),
+                      favorita: favoritos.isFavorita(planta.id),
+                      onFavoritar: auth.estaLogado
+                          ? () => favoritos.alternar(planta.id)
                           : null,
                     );
                   },
                 ),
         ),
       ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final auth = context.watch<AuthService>();
+    final favoritos = context.watch<FavoritosService>();
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Jardim Fácil'),
+        actions: _acoes(auth),
+      ),
+      body: Column(
+        children: [
+          _banner(auth),
+          Expanded(child: _corpo(auth, favoritos)),
+        ],
+      ),
     );
   }
 }
