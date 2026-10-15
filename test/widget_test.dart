@@ -23,6 +23,11 @@ Future<void> abrirApp(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+// O toast some sozinho após 3s; esperamos para não deixar timer pendente.
+Future<void> aguardarToast(WidgetTester tester) async {
+  await tester.pump(const Duration(seconds: 4));
+}
+
 Future<void> fazerLogin(WidgetTester tester, String senha) async {
   await tester.tap(find.text('Entrar'));
   await tester.pumpAndSettle();
@@ -30,6 +35,7 @@ Future<void> fazerLogin(WidgetTester tester, String senha) async {
   await tester.enterText(find.byKey(const Key('campoSenha')), senha);
   await tester.tap(find.byKey(const Key('botaoEntrar')));
   await tester.pumpAndSettle();
+  await aguardarToast(tester);
 }
 
 void main() {
@@ -92,6 +98,7 @@ void main() {
     await tester.tap(find.text('Adicionar ao meu jardim'));
     await tester.pumpAndSettle();
     expect(find.text('Remover do meu jardim'), findsOneWidget);
+    await aguardarToast(tester);
 
     await tester.tap(find.byTooltip('Voltar'));
     await tester.pumpAndSettle();
@@ -107,6 +114,7 @@ void main() {
     await tester.tap(find.text('Adicionar ao meu jardim'));
     await tester.pump();
     expect(find.text('Faça login para favoritar'), findsOneWidget);
+    await aguardarToast(tester);
   });
 
   testWidgets('logout esconde Meu jardim', (tester) async {
@@ -118,5 +126,6 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byTooltip('Meu jardim'), findsNothing);
     expect(find.text('Entrar'), findsOneWidget);
+    await aguardarToast(tester);
   });
 }
