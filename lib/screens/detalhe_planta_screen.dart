@@ -11,7 +11,7 @@ import '../services/planta_repository.dart';
 import '../widgets/dificuldade_chip.dart';
 import '../widgets/info_card.dart';
 
-/// Detalhes de uma planta, com opção de adicionar ao jardim (usuário logado).
+/// Detalhes de uma planta (GET /plantas/{id}), com opção de adicionar ao jardim.
 class DetalhePlantaScreen extends StatefulWidget {
   const DetalhePlantaScreen({super.key});
 
@@ -21,18 +21,29 @@ class DetalhePlantaScreen extends StatefulWidget {
 
 class _DetalhePlantaScreenState extends State<DetalhePlantaScreen> {
   Planta? _planta;
+  bool _erro = false;
 
   @override
   void initState() {
     super.initState();
-    final id = context.read<GerenciadorEstado>().idPlanta;
-    context.read<PlantaRepository>().buscarPorId(id).then((planta) {
-      if (!mounted) return;
-      setState(() => _planta = planta);
-    });
+    _carregar();
   }
 
-  void _alternar(Planta planta) {
+  Future<void> _carregar() async {
+    final id = context.read<GerenciadorEstado>().idPlanta;
+    try {
+      final planta = await context.read<PlantaRepository>().buscarPorId(id);
+      if (!mounted) return;
+      setState(() {
+        _planta = planta;
+        _erro = planta == null;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _erro = true);
+    }
+  }
+
+  Future<void> _alternar(Planta planta) async {
     if (!context.read<AuthService>().estaLogado) {
       Toast.show(
         'Faça login para favoritar',
@@ -41,14 +52,24 @@ class _DetalhePlantaScreenState extends State<DetalhePlantaScreen> {
       );
       return;
     }
-    final agoraFavorita = context.read<FavoritosService>().alternar(planta.id);
-    Toast.show(
-      agoraFavorita
-          ? '${planta.nome} adicionada ao seu jardim'
-          : '${planta.nome} removida do seu jardim',
-      duration: Toast.lengthLong,
-      gravity: Toast.bottom,
-    );
+    try {
+      final agoraFavorita = await context.read<FavoritosService>().alternar(
+        planta.id,
+      );
+      Toast.show(
+        agoraFavorita
+            ? '${planta.nome} adicionada ao seu jardim'
+            : '${planta.nome} removida do seu jardim',
+        duration: Toast.lengthLong,
+        gravity: Toast.bottom,
+      );
+    } catch (_) {
+      Toast.show(
+        'Não foi possível atualizar seus favoritos',
+        duration: Toast.lengthLong,
+        gravity: Toast.bottom,
+      );
+    }
   }
 
   void _compartilhar(Planta planta) {
@@ -73,7 +94,11 @@ class _DetalhePlantaScreenState extends State<DetalhePlantaScreen> {
     if (planta == null) {
       return Scaffold(
         appBar: AppBar(leading: voltar),
-        body: const Center(child: CircularProgressIndicator()),
+        body: Center(
+          child: _erro
+              ? const Text('Não foi possível carregar a planta')
+              : const CircularProgressIndicator(),
+        ),
       );
     }
 

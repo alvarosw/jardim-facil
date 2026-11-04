@@ -1,68 +1,103 @@
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
+import 'package:http/http.dart' as http;
 
 import '../models/planta.dart';
+import 'api_config.dart';
 import 'auth_service.dart';
 
+/// Favoritos do usuário logado, sincronizados com o usuarios-service.
 class FavoritosService extends ChangeNotifier {
   final AuthService auth;
-  final AssetBundle _bundle;
-  final Map<String, Set<String>> _favoritos = {};
-  bool _carregado = false;
+  final http.Client _client;
+  Set<String> _ids = <String>{};
 
-  FavoritosService(this.auth, {AssetBundle? bundle})
-    : _bundle = bundle ?? rootBundle {
-    // Atualiza a interface quando o usuário entra ou sai
-    auth.addListener(notifyListeners);
+  FavoritosService(this.auth, {http.Client? client})
+    : _client = client ?? http.Client() {
+    // Carrega ao entrar e limpa ao sair
+    auth.addListener(_aoMudarAutenticacao);
   }
 
   @override
   void dispose() {
-    auth.removeListener(notifyListeners);
+    auth.removeListener(_aoMudarAutenticacao);
     super.dispose();
   }
 
+  void _aoMudarAutenticacao() {
+    if (auth.estaLogado) {
+      carregar().catchError((_) {}); // sem favoritos, a lista fica vazia
+    } else {
+      _ids = <String>{};
+      notifyListeners();
+    }
+  }
+
+  /// Busca os ids favoritos do usuário logado (GET /favoritos).
   Future<void> carregar() async {
-    if (_carregado) return;
-    final texto = await _bundle.loadString('assets/data/favoritos.json');
-    final mapa = jsonDecode(texto) as Map<String, dynamic>;
-    mapa.forEach((userId, ids) {
-      _favoritos
-          .putIfAbsent(userId, () => <String>{})
-          .addAll((ids as List<dynamic>).cast<String>());
-    });
-    _carregado = true;
+    final token = auth.token;
+    if (token == null) return;
+    final resp = await ApiConfig.repetirSeConexaoFechada(
+      () => _client
+          .get(
+            Uri.parse('${ApiConfig.usuariosApi}/favoritos'),
+            headers: ApiConfig.autorizacao(token),
+          )
+          .timeout(ApiConfig.timeout),
+    );
+    if (resp.statusCode != 200) {
+      throw Exception('Erro ${resp.statusCode} ao carregar favoritos');
+    }
+    // Ignora a resposta se o usuário saiu ou trocou enquanto esperava
+    if (auth.token != token) return;
+    final dados =
+        jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
+    _ids = (dados['ids'] as List<dynamic>).cast<String>().toSet();
     notifyListeners();
   }
 
-  Set<String> get idsFavoritos {
-    final usuario = auth.usuarioLogado;
-    if (usuario == null) return <String>{};
-    return Set.unmodifiable(_favoritos[usuario.id] ?? <String>{});
-  }
+  Set<String> get idsFavoritos => Set.unmodifiable(_ids);
 
-  bool isFavorita(String plantaId) => idsFavoritos.contains(plantaId);
+  bool isFavorita(String plantaId) => _ids.contains(plantaId);
 
-  bool alternar(String plantaId) {
-    final usuario = auth.usuarioLogado;
-    if (usuario == null) {
+  /// Favorita ou desfavorita a planta. A mudança aparece na hora; se o
+  /// servidor recusar, volta ao estado anterior e o erro é relançado.
+  Future<bool> alternar(String plantaId) async {
+    final token = auth.token;
+    if (token == null) {
       throw StateError('É necessário estar logado para favoritar plantas.');
     }
-    final ids = _favoritos.putIfAbsent(usuario.id, () => <String>{});
-    final novoEstado = !ids.contains(plantaId);
-    if (novoEstado) {
-      ids.add(plantaId);
-    } else {
-      ids.remove(plantaId);
+    final novoEstado = !_ids.contains(plantaId);
+    _marcar(plantaId, novoEstado);
+    try {
+      final uri = Uri.parse('${ApiConfig.usuariosApi}/favoritos/$plantaId');
+      final headers = ApiConfig.autorizacao(token);
+      final resp = await ApiConfig.repetirSeConexaoFechada(
+        () => novoEstado
+            ? _client.put(uri, headers: headers).timeout(ApiConfig.timeout)
+            : _client.delete(uri, headers: headers).timeout(ApiConfig.timeout),
+      );
+      if (resp.statusCode >= 300) {
+        throw Exception('Erro ${resp.statusCode} ao atualizar favorito');
+      }
+    } catch (_) {
+      _marcar(plantaId, !novoEstado);
+      rethrow;
     }
-    notifyListeners();
     return novoEstado;
   }
 
+  void _marcar(String plantaId, bool favorita) {
+    if (favorita) {
+      _ids.add(plantaId);
+    } else {
+      _ids.remove(plantaId);
+    }
+    notifyListeners();
+  }
+
   List<Planta> filtrarFavoritas(List<Planta> todas) {
-    final ids = idsFavoritos;
-    return todas.where((p) => ids.contains(p.id)).toList();
+    return todas.where((p) => _ids.contains(p.id)).toList();
   }
 }

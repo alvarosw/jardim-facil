@@ -5,7 +5,7 @@ import 'package:toast/toast.dart';
 import '../services/auth_service.dart';
 import '../services/gerenciador_estado.dart';
 
-/// Tela de login (mock). Ao dar certo, volta para a lista de plantas.
+/// Tela de login. Ao dar certo, volta para a lista de plantas.
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -18,6 +18,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final _emailController = TextEditingController();
   final _senhaController = TextEditingController();
   bool _ocultarSenha = true;
+  bool _entrando = false;
   String? _erro;
 
   @override
@@ -27,19 +28,26 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  void _entrar() {
+  Future<void> _entrar() async {
     if (!_formKey.currentState!.validate()) return;
     final auth = context.read<AuthService>();
-    final ok = auth.login(_emailController.text.trim(), _senhaController.text);
-    if (ok) {
+    final estado = context.read<GerenciadorEstado>();
+    setState(() {
+      _entrando = true;
+      _erro = null;
+    });
+    try {
+      await auth.login(_emailController.text, _senhaController.text);
       Toast.show(
         'Bem-vindo(a), ${auth.usuarioLogado?.nome}!',
         duration: Toast.lengthLong,
         gravity: Toast.bottom,
       );
-      context.read<GerenciadorEstado>().exibirPlantas();
-    } else {
-      setState(() => _erro = 'E-mail ou senha inválidos');
+      estado.exibirPlantas();
+    } on ErroAutenticacao catch (e) {
+      if (mounted) setState(() => _erro = e.mensagem);
+    } finally {
+      if (mounted) setState(() => _entrando = false);
     }
   }
 
@@ -116,8 +124,14 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 24),
               FilledButton(
                 key: const Key('botaoEntrar'),
-                onPressed: _entrar,
-                child: const Text('Entrar'),
+                onPressed: _entrando ? null : _entrar,
+                child: _entrando
+                    ? const SizedBox(
+                        height: 20,
+                        width: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Text('Entrar'),
               ),
               const SizedBox(height: 24),
               Container(

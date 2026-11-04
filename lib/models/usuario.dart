@@ -2,12 +2,14 @@ class Usuario {
   final String id;
   final String nome;
   final String email;
-  final String senha;
 
-  const Usuario({
-    required this.id,
-    required this.nome,
-    required this.email,
-    required this.senha,
-  });
+  const Usuario({required this.id, required this.nome, required this.email});
+
+  factory Usuario.fromJson(Map<String, dynamic> json) {
+    return Usuario(
+      id: json['id'] as String,
+      nome: json['nome'] as String,
+      email: json['email'] as String,
+    );
+  }
 }

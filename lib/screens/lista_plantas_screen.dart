@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:toast/toast.dart';
@@ -9,7 +11,8 @@ import '../services/gerenciador_estado.dart';
 import '../services/planta_repository.dart';
 import '../widgets/planta_card.dart';
 
-/// Tela inicial: lista de plantas com busca e filtro por dificuldade.
+/// Tela inicial: lista paginada de plantas, com busca, filtro por dificuldade
+/// e carregamento da próxima página ao rolar até o fim.
 class ListaPlantasScreen extends StatefulWidget {
   const ListaPlantasScreen({super.key});
 
@@ -20,58 +23,102 @@ class ListaPlantasScreen extends StatefulWidget {
 class _ListaPlantasScreenState extends State<ListaPlantasScreen> {
   static const _filtros = ['Todas', 'Fácil', 'Média', 'Difícil'];
 
-  List<Planta> _plantas = [];
-  bool _carregando = true;
+  final _rolagem = ScrollController();
+  final List<Planta> _plantas = [];
+  int _pagina = 0; // última página carregada
+  bool _temMais = true;
+  bool _carregando = false;
   bool _erro = false;
   String _busca = '';
   String _filtro = 'Todas';
+  int _geracao = 0; // muda a cada nova busca; respostas antigas são ignoradas
+  Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
-    _carregar();
+    _rolagem.addListener(_verificarFim);
+    _reiniciar();
   }
 
-  void _carregar() {
-    final repository = context.read<PlantaRepository>();
-    final favoritos = context.read<FavoritosService>();
-    setState(() {
-      _carregando = true;
-      _erro = false;
-    });
-    repository
-        .carregarPlantas()
-        .then((plantas) async {
-          await favoritos.carregar();
-          if (!mounted) return;
-          setState(() {
-            _plantas = plantas;
-            _carregando = false;
-          });
-        })
-        .catchError((_) {
-          if (!mounted) return;
-          setState(() {
-            _carregando = false;
-            _erro = true;
-          });
-        });
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _rolagem.dispose();
+    super.dispose();
   }
 
-  Future<void> _atualizar() async {
+  // Volta à página 1 (busca, filtro ou puxar para atualizar).
+  Future<void> _reiniciar() {
+    _geracao++;
+    _pagina = 0;
+    _temMais = true;
+    _carregando = false;
+    return _carregarPagina();
+  }
+
+  // Perto do fim da lista (ou lista sem rolagem): busca a próxima página.
+  void _verificarFim() {
+    if (_rolagem.hasClients && _rolagem.position.extentAfter < 300) {
+      _carregarPagina();
+    }
+  }
+
+  Future<void> _carregarPagina() async {
+    if (_carregando || !_temMais) return;
+    final geracao = _geracao;
+    final proxima = _pagina + 1;
+    setState(() => _carregando = true);
     try {
-      final plantas = await context
-          .read<PlantaRepository>()
-          .recarregarPlantas();
-      if (!mounted) return;
+      final pagina = await context.read<PlantaRepository>().listar(
+        pagina: proxima,
+        busca: _busca.trim(),
+        dificuldade: _filtro == 'Todas' ? null : _filtro,
+      );
+      if (!mounted || geracao != _geracao) return;
       setState(() {
-        _plantas = plantas;
+        if (proxima == 1) _plantas.clear();
+        _plantas.addAll(pagina.itens);
+        _pagina = proxima;
+        _temMais = pagina.temMais;
         _erro = false;
       });
+      // Primeira página nova (busca, filtro ou atualização): volta ao topo
+      if (proxima == 1 && _rolagem.hasClients) _rolagem.jumpTo(0);
+      WidgetsBinding.instance.addPostFrameCallback((_) => _verificarFim());
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || geracao != _geracao) return;
+      if (proxima == 1) {
+        setState(() {
+          _plantas.clear();
+          _erro = true;
+        });
+      } else {
+        Toast.show(
+          'Não foi possível carregar mais plantas',
+          duration: Toast.lengthLong,
+          gravity: Toast.bottom,
+        );
+      }
+    } finally {
+      if (mounted && geracao == _geracao) {
+        setState(() => _carregando = false);
+      }
+    }
+  }
+
+  void _aoDigitarBusca(String valor) {
+    _busca = valor;
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 400), _reiniciar);
+  }
+
+  Future<void> _alternarFavorito(Planta planta) async {
+    try {
+      await context.read<FavoritosService>().alternar(planta.id);
+    } catch (_) {
       Toast.show(
-        'Não foi possível atualizar a lista',
+        'Não foi possível atualizar seus favoritos',
         duration: Toast.lengthLong,
         gravity: Toast.bottom,
       );
@@ -148,33 +195,6 @@ class _ListaPlantasScreenState extends State<ListaPlantasScreen> {
   }
 
   Widget _corpo(AuthService auth, FavoritosService favoritos) {
-    if (_carregando) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (_erro) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Icon(Icons.error_outline, size: 48),
-            const SizedBox(height: 8),
-            const Text('Não foi possível carregar as plantas'),
-            const SizedBox(height: 8),
-            FilledButton(
-              onPressed: _carregar,
-              child: const Text('Tentar novamente'),
-            ),
-          ],
-        ),
-      );
-    }
-    final busca = _busca.trim().toLowerCase();
-    final filtradas = _plantas.where((p) {
-      final nomeOk = p.nome.toLowerCase().contains(busca);
-      final nivelOk = _filtro == 'Todas' || p.dificuldade == _filtro;
-      return nomeOk && nivelOk;
-    }).toList();
-
     return Column(
       children: [
         Padding(
@@ -186,7 +206,7 @@ class _ListaPlantasScreenState extends State<ListaPlantasScreen> {
               border: OutlineInputBorder(),
               isDense: true,
             ),
-            onChanged: (valor) => setState(() => _busca = valor),
+            onChanged: _aoDigitarBusca,
           ),
         ),
         SingleChildScrollView(
@@ -200,44 +220,80 @@ class _ListaPlantasScreenState extends State<ListaPlantasScreen> {
                   child: ChoiceChip(
                     label: Text(f),
                     selected: _filtro == f,
-                    onSelected: (_) => setState(() => _filtro = f),
+                    onSelected: (_) {
+                      setState(() => _filtro = f);
+                      _reiniciar();
+                    },
                   ),
                 ),
             ],
           ),
         ),
-        Expanded(
-          child: RefreshIndicator(
-            onRefresh: _atualizar,
-            child: filtradas.isEmpty
-                ? ListView(
-                    children: const [
-                      Padding(
-                        padding: EdgeInsets.only(top: 48),
-                        child: Center(child: Text('Nenhuma planta encontrada')),
-                      ),
-                    ],
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: filtradas.length,
-                    itemBuilder: (context, i) {
-                      final planta = filtradas[i];
-                      return PlantaCard(
-                        planta: planta,
-                        onTap: () => context
-                            .read<GerenciadorEstado>()
-                            .exibirDetalhes(planta.id),
-                        favorita: favoritos.isFavorita(planta.id),
-                        onFavoritar: auth.estaLogado
-                            ? () => favoritos.alternar(planta.id)
-                            : null,
-                      );
-                    },
-                  ),
-          ),
-        ),
+        Expanded(child: _lista(auth, favoritos)),
       ],
+    );
+  }
+
+  Widget _lista(AuthService auth, FavoritosService favoritos) {
+    if (_erro) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.error_outline, size: 48),
+            const SizedBox(height: 8),
+            const Text('Não foi possível carregar as plantas'),
+            const SizedBox(height: 8),
+            FilledButton(
+              onPressed: _reiniciar,
+              child: const Text('Tentar novamente'),
+            ),
+          ],
+        ),
+      );
+    }
+    if (_carregando && _plantas.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return RefreshIndicator(
+      onRefresh: _reiniciar,
+      child: _plantas.isEmpty
+          ? ListView(
+              children: const [
+                Padding(
+                  padding: EdgeInsets.only(top: 48),
+                  child: Center(child: Text('Nenhuma planta encontrada')),
+                ),
+              ],
+            )
+          : ListView.builder(
+              controller: _rolagem,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              // Um item extra no fim: indicador enquanto a próxima página chega
+              itemCount: _plantas.length + 1,
+              itemBuilder: (context, i) {
+                if (i == _plantas.length) return _rodape();
+                final planta = _plantas[i];
+                return PlantaCard(
+                  planta: planta,
+                  onTap: () => context.read<GerenciadorEstado>().exibirDetalhes(
+                    planta.id,
+                  ),
+                  favorita: favoritos.isFavorita(planta.id),
+                  onFavoritar: auth.estaLogado
+                      ? () => _alternarFavorito(planta)
+                      : null,
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _rodape() {
+    if (!_carregando) return const SizedBox.shrink();
+    return const Padding(
+      padding: EdgeInsets.all(16),
+      child: Center(child: CircularProgressIndicator()),
     );
   }
 

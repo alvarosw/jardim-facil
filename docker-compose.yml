@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: jardim_facil
+      POSTGRES_USER: jardim
+      POSTGRES_PASSWORD: jardim
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U jardim -d jardim_facil"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  plantas-service:
+    build: ./backend/plantas_service
+    environment:
+      DATABASE_URL: postgresql://jardim:jardim@db:5432/jardim_facil
+    ports:
+      - "8001:8001"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  usuarios-service:
+    build: ./backend/usuarios_service
+    environment:
+      DATABASE_URL: postgresql://jardim:jardim@db:5432/jardim_facil
+      JWT_SECRET: ${JWT_SECRET:-jardim-facil-dev-troque-em-producao}
+    ports:
+      - "8002:8002"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:
