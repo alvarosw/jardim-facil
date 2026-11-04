@@ -1,15 +1,21 @@
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 /// Endereços dos dois serviços da API. Mude com --dart-define (ver README).
 class ApiConfig {
-  static const plantasApi = String.fromEnvironment(
-    'PLANTAS_API',
-    defaultValue: 'http://localhost:8001',
-  );
-  static const usuariosApi = String.fromEnvironment(
-    'USUARIOS_API',
-    defaultValue: 'http://localhost:8002',
-  );
+  /// No emulador Android, "localhost" é o próprio emulador; o PC é 10.0.2.2.
+  static final _host =
+      !kIsWeb && defaultTargetPlatform == TargetPlatform.android
+      ? '10.0.2.2'
+      : 'localhost';
+
+  static final plantasApi = const String.fromEnvironment('PLANTAS_API').isEmpty
+      ? 'http://$_host:8001'
+      : const String.fromEnvironment('PLANTAS_API');
+  static final usuariosApi =
+      const String.fromEnvironment('USUARIOS_API').isEmpty
+      ? 'http://$_host:8002'
+      : const String.fromEnvironment('USUARIOS_API');
 
   /// Tempo máximo de espera por uma resposta da API.
   static const timeout = Duration(seconds: 10);
